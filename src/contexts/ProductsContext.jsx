@@ -1,4 +1,11 @@
-import { createContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -14,21 +21,27 @@ function ProductsProvider({ children }) {
   // STATE: Store products filtered by selected category
   const [filteredProducts, setFilteredProducts] = useState([]);
 
-  // STATE: Store products filtered by search query
-  const [searchedProducts, setSearchedProducts] = useState([]);
-
   // STATE: Store current search input value
   const [search, setSearch] = useState("");
 
-  // STATE: Store product IDs in cart (persisted to localStorage for persistence)
-  // Initialized with localStorage data if available, otherwise empty array
+  // STATE: Store product IDs in cart as Set for O(1) lookup performance
+  // Initialized with localStorage data converted to Set
+  // Set provides faster lookups than array .includes() method
   const [cartProducts, setCartProducts] = useState(() => {
     const saved = localStorage.getItem("cartProducts");
-    return saved ? JSON.parse(saved) : [];
+    const ids = saved ? JSON.parse(saved) : [];
+    return new Set(ids);
   });
 
-  // DERIVED STATE: Calculate cart items count from cartProducts array length
-  const cartProductsNumber = cartProducts.length;
+  // REF: Track pending localStorage updates to debounce writes
+  // Prevents excessive localStorage calls which are synchronous and blocking
+  const cartSaveTimeoutRef = useRef(null);
+
+  // STATE: Track debounced search input to avoid filtering on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // DERIVED STATE: Calculate cart items count from Set size
+  const cartProductsNumber = cartProducts.size;
 
   // QUERY: Fetch all products from FakeStore API using React Query
   // React Query handles caching, retry logic, and loading/error states
@@ -65,96 +78,136 @@ function ProductsProvider({ children }) {
     setCategories(categoriesArr);
   };
 
-  // FUNCTION: Add product to cart and persist to localStorage
-  // Stores only product ID (not entire object) to minimize storage
-  // Updates localStorage immediately to persist cart across page refreshes
-  const addProductToCart = (product) => {
+  // FUNCTION: Add product to cart with debounced localStorage persistence
+  // Uses Set for O(1) add operation instead of array push
+  // localStorage update is debounced to batch multiple cart changes
+  const addProductToCart = useCallback((product) => {
     setCartProducts((prev) => {
-      const updated = [...prev, product.id];
-      localStorage.setItem("cartProducts", JSON.stringify(updated));
-      return updated;
-    });
-  };
+      const updated = new Set(prev);
+      updated.add(product.id);
 
-  // FUNCTION: Remove product from cart and persist to localStorage
-  // Filters out product ID and updates localStorage
-  const removeProductFromCart = (product) => {
-    setCartProducts((prev) => {
-      const updated = prev.filter((id) => id !== product.id);
-      localStorage.setItem("cartProducts", JSON.stringify(updated));
+      // Clear existing timeout and set new one for debounced save
+      if (cartSaveTimeoutRef.current) clearTimeout(cartSaveTimeoutRef.current);
+      cartSaveTimeoutRef.current = setTimeout(() => {
+        localStorage.setItem("cartProducts", JSON.stringify([...updated]));
+      }, 300);
+
       return updated;
     });
-  };
+  }, []);
+
+  // FUNCTION: Remove product from cart with debounced localStorage persistence
+  // Uses Set.delete() for efficient removal
+  const removeProductFromCart = useCallback((product) => {
+    setCartProducts((prev) => {
+      const updated = new Set(prev);
+      updated.delete(product.id);
+
+      // Clear existing timeout and set new one for debounced save
+      if (cartSaveTimeoutRef.current) clearTimeout(cartSaveTimeoutRef.current);
+      cartSaveTimeoutRef.current = setTimeout(() => {
+        localStorage.setItem("cartProducts", JSON.stringify([...updated]));
+      }, 300);
+
+      return updated;
+    });
+  }, []);
 
   // FUNCTION: Check if product is already in cart (for button state)
-  const isProductInCart = (productId) => {
-    return cartProducts.includes(productId);
-  };
+  // O(1) lookup time using Set.has() instead of array.includes() O(n)
+  const isProductInCart = useCallback(
+    (productId) => {
+      return cartProducts.has(productId);
+    },
+    [cartProducts]
+  );
 
   // FUNCTION: Filter products by selected category and reset search
-  const makeFilteredProducts = (category) => {
-    setSearch("");
-    if (category === "all") {
-      setFilteredProducts([]);
-      return;
-    }
-    setFilteredProducts(
-      products.filter((element) => element.category === category)
-    );
-  };
+  const makeFilteredProducts = useCallback(
+    (category) => {
+      setSearch("");
+      setDebouncedSearch("");
+      if (category === "all") {
+        setFilteredProducts([]);
+        return;
+      }
+      setFilteredProducts(
+        products.filter((element) => element.category === category)
+      );
+    },
+    [products]
+  );
 
-  // EFFECT: Search products in real-time as user types
-  // Filters showedProducts (which respects category filter) by title and description
-  // Case-insensitive search by converting strings to lowercase
-  // Only triggers search if input is 3+ characters to reduce re-renders
-  // PERFORMANCE ISSUES:
-  // 1. Creates new regex/filter on every keystroke (expensive for large arrays)
-  // 2. toLowerCase() called multiple times per search - could be memoized
-  // 3. Search effect runs even when search is empty, clearing results unnecessarily
-  // OPTIMIZATION: Use useMemo to cache search results, add debouncing for input
+  // EFFECT: Debounce search input to prevent filtering on every keystroke
+  // Wait 300ms after user stops typing before updating debouncedSearch state
+  // This reduces unnecessary re-renders and expensive filter operations
   useEffect(() => {
-    const updateSearch = () => {
-      if (searchedProducts.length > 0) {
-        searchedProducts((prev) =>
-          prev.filter(
-            (element) =>
-              element.title.includes(search.toLowerCase()) ||
-              element.description.includes(search.toLowerCase())
-          )
-        );
-      } else
-        setSearchedProducts(
-          showedProducts.filter(
-            (element) =>
-              element.title.includes(search.toLowerCase()) ||
-              element.description.includes(search.toLowerCase())
-          )
-        );
-    };
-    if (search.length >= 3) updateSearch();
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
 
-    return () => setSearchedProducts([]);
-  }, [search, setSearchedProducts, showedProducts, searchedProducts]);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // EFFECT: Memoized search filtering based on debounced input
+  // Only recalculates when debouncedSearch or showedProducts changes
+  // Converts search to lowercase once instead of per-product
+  // Performance: Only runs after user finishes typing (300ms debounce)
+  const searchedProducts = useMemo(() => {
+    if (debouncedSearch.length < 3) return [];
+
+    const lowerSearch = debouncedSearch.toLowerCase();
+    return showedProducts.filter(
+      (element) =>
+        element.title.toLowerCase().includes(lowerSearch) ||
+        element.description.toLowerCase().includes(lowerSearch)
+    );
+  }, [debouncedSearch, showedProducts]);
+
+  // CALLBACK: Update search input and trigger debounce timer
+  // Wrapped in useCallback for stable reference to avoid re-renders
+  const updateSearch = useCallback((value) => {
+    setSearch(value);
+  }, []);
+
+  // MEMOIZED CONTEXT VALUE: Prevent context consumers from re-rendering unnecessarily
+  // Only changes when dependencies change, not on every parent re-render
+  // This significantly reduces ProductCard re-renders which were causing button state resets
+  const contextValue = useMemo(
+    () => ({
+      isLoading,
+      error,
+      showedProducts,
+      searchedProducts,
+      categories,
+      search,
+      cartProductsNumber,
+      updateSearch,
+      addProductToCart,
+      removeProductFromCart,
+      isProductInCart,
+      makeFilteredProducts,
+    }),
+    [
+      isLoading,
+      error,
+      showedProducts,
+      searchedProducts,
+      categories,
+      search,
+      cartProductsNumber,
+      updateSearch,
+      addProductToCart,
+      removeProductFromCart,
+      isProductInCart,
+      makeFilteredProducts,
+    ]
+  );
 
   // PROVIDER PATTERN: Expose state and functions through context
   // All components wrapped by ProductsProvider can access these values via useContext()
   return (
-    <ProductsContext.Provider
-      value={{
-        isLoading,
-        error,
-        showedProducts,
-        searchedProducts,
-        categories,
-        search,
-        cartProductsNumber,
-        updateSearch: setSearch,
-        addProductToCart,
-        removeProductFromCart,
-        isProductInCart,
-        makeFilteredProducts,
-      }}
-    >
+    <ProductsContext.Provider value={contextValue}>
       {children}
     </ProductsContext.Provider>
   );

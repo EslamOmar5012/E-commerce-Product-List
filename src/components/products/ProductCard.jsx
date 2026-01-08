@@ -1,4 +1,5 @@
 import { useProducts } from "../../hooks/useProducts";
+import { memo, useCallback } from "react";
 
 import {
   Box,
@@ -27,19 +28,24 @@ const StyledCardMedia = styled(CardMedia)(() => ({
   },
 }));
 
+// COMPONENT: Product card with memoization to prevent unnecessary re-renders
+// memo() prevents re-renders when parent re-renders but props haven't changed
 function ProductCard({ product }) {
   const { addProductToCart, removeProductFromCart, isProductInCart } =
     useProducts();
 
+  // PERFORMANCE: Check if product is in cart - now O(1) operation with Set
   const isSelected = isProductInCart(product.id);
 
-  const handleAddProductsToCart = () => {
+  // CALLBACK: Memoized handlers to provide stable references
+  // Prevents unnecessary re-renders of child components
+  const handleAddProductsToCart = useCallback(() => {
     addProductToCart(product);
-  };
+  }, [product, addProductToCart]);
 
-  const handleRemoveProductsFromCart = () => {
+  const handleRemoveProductsFromCart = useCallback(() => {
     removeProductFromCart(product);
-  };
+  }, [product, removeProductFromCart]);
 
   return (
     <Card
@@ -199,4 +205,5 @@ function ProductCard({ product }) {
   );
 }
 
-export default ProductCard;
+// Export memoized component to prevent unnecessary re-renders
+export default memo(ProductCard);
