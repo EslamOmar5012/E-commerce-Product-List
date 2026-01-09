@@ -63,7 +63,7 @@ function NavBar() {
   // Import cart count and search update function from products context
   const { cartProductsNumber, debouncedSearch, updateSearch } = useProducts();
 
-  // Function to update search state when user types in search input (it uses debounce) (it is in controlled component)
+  // Function to update search state when user types in search input (it uses debounce) (it is in controlled component) the resault showed depends on title and description
   const handleSearchChange = (e) => {
     updateSearch(e.target.value);
   };
