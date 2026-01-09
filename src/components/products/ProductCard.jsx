@@ -49,6 +49,10 @@ function ProductCard({ product }) {
   return (
     <Card
       sx={{
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        height: 550,
         maxWidth: 384,
         width: "100%",
         boxShadow: 3,
@@ -136,20 +140,21 @@ function ProductCard({ product }) {
         <Typography
           variant="body2"
           sx={{
+            maxHeight: 30,
             color: "text.secondary",
-            overflow: "hidden",
+            textOverflow: "ellipsis",
             textAlign: "left",
             mb: 2,
           }}
         >
-          {product.description}
+          {product.description.slice(0, 100) + "..."}
         </Typography>
 
         {/* Price */}
         <Typography
           variant="h5"
           color="primary"
-          sx={{ fontWeight: 800, mb: 1, textAlign: "left" }}
+          sx={{ fontWeight: 800, mt: 5, mb: 1, textAlign: "left" }}
         >
           ${product.price.toFixed(2)}
         </Typography>
