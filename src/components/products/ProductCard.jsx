@@ -1,5 +1,5 @@
+import { useCallback } from "react";
 import { useProducts } from "../../hooks/useProducts";
-import { memo, useCallback } from "react";
 
 import {
   Box,
@@ -17,7 +17,7 @@ import {
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import styled from "@emotion/styled";
 
-// Custom styled component for the CardMedia to handle the smooth hover animation
+// Custom styled component for the CardMedia for smooth hover animation and shadow box
 const StyledCardMedia = styled(CardMedia)(() => ({
   height: 192,
   width: "100%",
@@ -28,21 +28,20 @@ const StyledCardMedia = styled(CardMedia)(() => ({
   },
 }));
 
-// COMPONENT: Product card with memoization to prevent unnecessary re-renders
-// memo() prevents re-renders when parent re-renders but props haven't changed
 function ProductCard({ product }) {
+  //Import addProductToCart , removeProductFromCart, and isProductInCart from productsContext
   const { addProductToCart, removeProductFromCart, isProductInCart } =
     useProducts();
 
-  // PERFORMANCE: Check if product is in cart - now O(1) operation with Set
+  // Check if product is in cart
   const isSelected = isProductInCart(product.id);
 
-  // CALLBACK: Memoized handlers to provide stable references
-  // Prevents unnecessary re-renders of child components
+  // Function to handle adding Products to cart (it uses useCallBack to prevent unnecessary re-renders of child components (like buttons))
   const handleAddProductsToCart = useCallback(() => {
     addProductToCart(product);
   }, [product, addProductToCart]);
 
+  // Function to handle remove Products from cart (it uses useCallBack to prevent unnecessary re-renders of child components (like buttons))
   const handleRemoveProductsFromCart = useCallback(() => {
     removeProductFromCart(product);
   }, [product, removeProductFromCart]);
@@ -205,5 +204,4 @@ function ProductCard({ product }) {
   );
 }
 
-// Export memoized component to prevent unnecessary re-renders
-export default memo(ProductCard);
+export default ProductCard;

@@ -1,12 +1,11 @@
-//3rd party libs imports
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+// If in dev mode we will use react query devTools
+// import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
-//components imports
 import ProductsPage from "./pages/ProductsPage.jsx";
 import { ProductsProvider } from "./contexts/ProductsContext.jsx";
 
-// Configure React Query client with caching options
+// Configure React Query client with caching options (staleTime)
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -24,7 +23,8 @@ function App() {
       <ProductsProvider>
         <ProductsPage />
       </ProductsProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {/* If in dev mode we will use react query devTools  */}
+      {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </QueryClientProvider>
   );
 }

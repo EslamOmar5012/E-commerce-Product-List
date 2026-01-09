@@ -5,6 +5,7 @@ import { useProducts } from "../hooks/useProducts.js";
 import { Alert, Box, CircularProgress, Container } from "@mui/material";
 
 function ProductsPage() {
+  // Importing isLoading , error, showedProducts, and searchedProducts from Products context
   const { isLoading, error, showedProducts, searshedProducts } = useProducts();
 
   return (

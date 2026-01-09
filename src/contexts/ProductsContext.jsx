@@ -3,48 +3,47 @@ import {
   useEffect,
   useState,
   useRef,
-  useMemo,
   useCallback,
+  useMemo,
 } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
 import axios from "axios";
 
-// Create context for managing products, categories, search, and cart state
+// Create context for managing products, categories, search, and cart states
 const ProductsContext = createContext();
 
 function ProductsProvider({ children }) {
-  // STATE: Store extracted categories from products list
+  // Store extracted categories from products list
   const [categories, setCategories] = useState(null);
 
-  // STATE: Store products filtered by selected category
+  // Store products filtered by selected category
   const [filteredProducts, setFilteredProducts] = useState([]);
 
-  // STATE: Store current search input value
+  // Store current search input value
   const [search, setSearch] = useState("");
 
-  // STATE: Store product IDs in cart as Set for O(1) lookup performance
-  // Initialized with localStorage data converted to Set
-  // Set provides faster lookups than array .includes() method
+  // Store product IDs in cart as Set to avoid redundancy
+  // Lazy initialized with localStorage data converted to Set
   const [cartProducts, setCartProducts] = useState(() => {
     const saved = localStorage.getItem("cartProducts");
     const ids = saved ? JSON.parse(saved) : [];
     return new Set(ids);
   });
 
-  // REF: Track pending localStorage updates to debounce writes
-  // Prevents excessive localStorage calls which are synchronous and blocking
+  // Track pending localStorage update timers to debounce writes in localStorage
   const cartSaveTimeoutRef = useRef(null);
 
-  // STATE: Track debounced search input to avoid filtering on every keystroke
+  // Track debounced search input to avoid filtering on every keystroke (reduce filtring itrations)
+  //I applied debounce search even if there is no real api calling to enhance performance and reduce the number of filtring proccesses
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  // DERIVED STATE: Calculate cart items count from Set size
+  // Calculate cart items count from Set size
   const cartProductsNumber = cartProducts.size;
 
-  // QUERY: Fetch all products from FakeStore API using React Query
-  // React Query handles caching, retry logic, and loading/error states
+  // Fetch all products from FakeStore API using React Query
+  //I used React Query not useEffect to reduce number of rerenders and for code readiability
   const {
     isPending: isLoading,
     error,
@@ -63,14 +62,12 @@ function ProductsProvider({ children }) {
     },
   });
 
-  // DERIVED STATE: Determine products to display based on category filter
-  // If filteredProducts is empty (no category selected), show all products
-  // Otherwise show only products from selected category
+  // Determine products to display based on category filter
+  // If filteredProducts is empty (no category selected) => show all products
   const showedProducts =
     filteredProducts.length === 0 ? products : filteredProducts;
 
-  // FUNCTION: Extract unique categories from products array using Set
-  // Maps products to their categories, converts to Set to remove duplicates, spreads back to array
+  // Extract unique categories from products array using Set
   const handleCategories = (products) => {
     const categoriesArr = [
       ...new Set(products.map((product) => product.category)),
@@ -78,9 +75,9 @@ function ProductsProvider({ children }) {
     setCategories(categoriesArr);
   };
 
-  // FUNCTION: Add product to cart with debounced localStorage persistence
-  // Uses Set for O(1) add operation instead of array push
-  // localStorage update is debounced to batch multiple cart changes
+  // Add product to cart with debounced localStorage persistence
+  // I used useCallback to not render the function if the context rendered
+  // localStorage update is debounced to batch multiple cart changes and reduce number of changes that will happen in localStorage
   const addProductToCart = useCallback((product) => {
     setCartProducts((prev) => {
       const updated = new Set(prev);
@@ -88,6 +85,8 @@ function ProductsProvider({ children }) {
 
       // Clear existing timeout and set new one for debounced save
       if (cartSaveTimeoutRef.current) clearTimeout(cartSaveTimeoutRef.current);
+
+      //Create new Time out with ID to add to localStorage after 300 milliSeconds
       cartSaveTimeoutRef.current = setTimeout(() => {
         localStorage.setItem("cartProducts", JSON.stringify([...updated]));
       }, 300);
@@ -96,8 +95,8 @@ function ProductsProvider({ children }) {
     });
   }, []);
 
-  // FUNCTION: Remove product from cart with debounced localStorage persistence
-  // Uses Set.delete() for efficient removal
+  // Remove product from cart with debounced localStorage persistence
+  // I used useCallback to not render the function if the context rendered
   const removeProductFromCart = useCallback((product) => {
     setCartProducts((prev) => {
       const updated = new Set(prev);
@@ -113,8 +112,7 @@ function ProductsProvider({ children }) {
     });
   }, []);
 
-  // FUNCTION: Check if product is already in cart (for button state)
-  // O(1) lookup time using Set.has() instead of array.includes() O(n)
+  // Check if product is already in cart (for buttons state)
   const isProductInCart = useCallback(
     (productId) => {
       return cartProducts.has(productId);
@@ -122,7 +120,7 @@ function ProductsProvider({ children }) {
     [cartProducts]
   );
 
-  // FUNCTION: Filter products by selected category and reset search
+  // Filter products by selected category and reset search
   const makeFilteredProducts = useCallback(
     (category) => {
       setSearch("");
@@ -138,7 +136,7 @@ function ProductsProvider({ children }) {
     [products]
   );
 
-  // EFFECT: Debounce search input to prevent filtering on every keystroke
+  // Debounce search input to prevent filtering on every keystroke
   // Wait 300ms after user stops typing before updating debouncedSearch state
   // This reduces unnecessary re-renders and expensive filter operations
   useEffect(() => {
@@ -149,10 +147,10 @@ function ProductsProvider({ children }) {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // EFFECT: Memoized search filtering based on debounced input
+  // Memoized search filtering based on debounced input
   // Only recalculates when debouncedSearch or showedProducts changes
   // Converts search to lowercase once instead of per-product
-  // Performance: Only runs after user finishes typing (300ms debounce)
+  // Only runs after user finishes typing (300ms debounce)
   const searchedProducts = useMemo(() => {
     if (debouncedSearch.length < 3) return [];
 
@@ -164,48 +162,28 @@ function ProductsProvider({ children }) {
     );
   }, [debouncedSearch, showedProducts]);
 
-  // CALLBACK: Update search input and trigger debounce timer
+  // Update search input and trigger debounce timer
   // Wrapped in useCallback for stable reference to avoid re-renders
   const updateSearch = useCallback((value) => {
     setSearch(value);
   }, []);
 
-  // MEMOIZED CONTEXT VALUE: Prevent context consumers from re-rendering unnecessarily
-  // Only changes when dependencies change, not on every parent re-render
-  // This significantly reduces ProductCard re-renders which were causing button state resets
-  const contextValue = useMemo(
-    () => ({
-      isLoading,
-      error,
-      showedProducts,
-      searchedProducts,
-      categories,
-      search,
-      cartProductsNumber,
-      updateSearch,
-      addProductToCart,
-      removeProductFromCart,
-      isProductInCart,
-      makeFilteredProducts,
-    }),
-    [
-      isLoading,
-      error,
-      showedProducts,
-      searchedProducts,
-      categories,
-      search,
-      cartProductsNumber,
-      updateSearch,
-      addProductToCart,
-      removeProductFromCart,
-      isProductInCart,
-      makeFilteredProducts,
-    ]
-  );
+  const contextValue = {
+    isLoading,
+    error,
+    showedProducts,
+    searchedProducts,
+    categories,
+    search,
+    cartProductsNumber,
+    updateSearch,
+    addProductToCart,
+    removeProductFromCart,
+    isProductInCart,
+    makeFilteredProducts,
+  };
 
-  // PROVIDER PATTERN: Expose state and functions through context
-  // All components wrapped by ProductsProvider can access these values via useContext()
+  // Provider Pattern => to make hook for using Context value
   return (
     <ProductsContext.Provider value={contextValue}>
       {children}

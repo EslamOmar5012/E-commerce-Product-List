@@ -15,8 +15,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 
-// STYLED COMPONENT: Search container with theme-aware styling
-// Uses alpha() helper to create semi-transparent background with hover effect
+// Styled search container
 const Search = styled("div")(({ theme }) => ({
   position: "relative",
   borderRadius: theme.shape.borderRadius,
@@ -33,8 +32,7 @@ const Search = styled("div")(({ theme }) => ({
   },
 }));
 
-// STYLED COMPONENT: Custom input field with responsive padding and transitions
-// Hides on mobile, expands to 30 characters on desktop with smooth transition
+// Styled custom input field
 const StyledInputBase = styled(InputBase)(({ theme }) => ({
   color: "inherit",
   width: "100%",
@@ -49,8 +47,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
-// STYLED COMPONENT: Wrapper for search icon with absolute positioning
-// Centers icon vertically and prevents pointer events
+//  Wrapper for search icon to handle the icon position
 const SearchIconWrapper = styled("div")(({ theme }) => ({
   padding: theme.spacing(0, 2),
   height: "100%",
@@ -61,14 +58,12 @@ const SearchIconWrapper = styled("div")(({ theme }) => ({
   justifyContent: "center",
 }));
 
-// COMPONENT: Navigation bar with search and cart icon
-// Displays brand name, search input, and shopping cart badge
+// Navigation bar with search and cart icon, it displays brand name, search input , and shopping cart badge
 function NavBar() {
-  // Get cart count and search update function from context
-  const { cartProductsNumber, updateSearch } = useProducts();
+  // Import cart count and search update function from products context
+  const { cartProductsNumber, debouncedSearch, updateSearch } = useProducts();
 
-  // HANDLER: Update search state when user types in search input
-  // Called on every character input, triggering search effect in context
+  // Function to update search state when user types in search input (it uses debounce) (it is in controlled component)
   const handleSearchChange = (e) => {
     updateSearch(e.target.value);
   };
@@ -97,15 +92,16 @@ function NavBar() {
             E-commerce
           </Typography>
 
-          {/* Search Bar - takes up middle space */}
+          {/* Search Bar */}
           <Search>
             <SearchIconWrapper>
               <SearchIcon />
             </SearchIconWrapper>
-            {/* Search input with onChange handler to update context state */}
+            {/* Search input with onChange handler to update context state (controlled component) */}
             <StyledInputBase
               placeholder="Search products…"
               inputProps={{ "aria-label": "search" }}
+              value={debouncedSearch}
               onChange={handleSearchChange}
             />
           </Search>
