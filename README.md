@@ -11,6 +11,7 @@ A modern, responsive e-commerce product listing application built with React and
 
 ---
 ### Note - I added a lot of comments to show that i can write clean understandable code
+### Note 2 - I made search functionality by searching in title and description of the product
 ---
 
 ### how to install and run code
